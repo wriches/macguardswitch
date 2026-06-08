@@ -20,13 +20,13 @@ If the tunnel drops, traffic stops instead of leaking onto your normal connectio
 ## Easy mode — double-click to connect (recommended)
 
 For a non-technical user, you don't touch the Terminal at all. The wrapper
-`macguard-vpn.sh` reads the endpoint and tunnel IP **straight from your `.conf`**
+`macguardswitch-vpn.sh` reads the endpoint and tunnel IP **straight from your `.conf`**
 (so there's nothing to configure twice), brings up WireGuard, arms the kill-switch,
 and supervises the session.
 
 **Setup (once):** put your WireGuard `.conf` in this folder, next to the scripts.
 That's it — no editing required. (If you keep more than one `.conf` here, set
-`WG_CONF` at the top of `macguard-vpn.sh` to pick one. `wireguard-tools` must be
+`WG_CONF` at the top of `macguardswitch-vpn.sh` to pick one. `wireguard-tools` must be
 installed — `brew install wireguard-tools`.)
 
 **To connect:** double-click **`Connect VPN.app`**. macOS shows its standard
@@ -54,7 +54,7 @@ Session lifecycle, handled for you:
 > (for `.app`s, approve via **System Settings → Privacy & Security → Open Anyway**).
 > Cloning the repo with `git` avoids quarantine entirely.
 
-The apps are thin GUI shims over `macguard-vpn.sh`; their AppleScript source
+The apps are thin GUI shims over `macguardswitch-vpn.sh`; their AppleScript source
 (`*.applescript`) is in the repo. To rebuild after editing:
 `osacompile -o "Connect VPN.app" "Connect VPN.applescript"`.
 

@@ -6,9 +6,9 @@ Guidance for Claude Code working in this repo.
 
 `macguardswitch.sh` is a single-file, fail-closed WireGuard kill-switch for macOS implemented with `pf`/`pfctl`. Three subcommands: `arm`, `disarm`, `status`.
 
-`macguard-vpn.sh` is a higher-level wrapper for non-technical users (`connect`/`disconnect`/`status`). It parses the WireGuard `.conf` for the endpoint and tunnel address, injects them into the kill-switch via `MGS_*` env vars (see below), self-elevates with `sudo`, and runs a detached root **supervisor** that brings up the tunnel + kill-switch and tears them down on logout/shutdown. Keep the kill-switch itself policy-free — session/lifecycle logic belongs in the wrapper, not in `macguardswitch.sh`.
+`macguardswitch-vpn.sh` is a higher-level wrapper for non-technical users (`connect`/`disconnect`/`status`). It parses the WireGuard `.conf` for the endpoint and tunnel address, injects them into the kill-switch via `MGS_*` env vars (see below), self-elevates with `sudo`, and runs a detached root **supervisor** that brings up the tunnel + kill-switch and tears them down on logout/shutdown. Keep the kill-switch itself policy-free — session/lifecycle logic belongs in the wrapper, not in `macguardswitch.sh`.
 
-Two sets of double-click launchers call the wrapper: `Connect VPN.app` / `Disconnect VPN.app` (primary — native admin prompt, no Terminal) and `Connect VPN.command` / `Disconnect VPN.command` (fallback — Terminal). The apps are compiled from the checked-in `*.applescript` sources with `osacompile -o "Connect VPN.app" "Connect VPN.applescript"`; edit the `.applescript`, recompile, and commit both. Each app must sit next to `macguard-vpn.sh` (it resolves the wrapper via `container of (path to me)`).
+Two sets of double-click launchers call the wrapper: `Connect VPN.app` / `Disconnect VPN.app` (primary — native admin prompt, no Terminal) and `Connect VPN.command` / `Disconnect VPN.command` (fallback — Terminal). The apps are compiled from the checked-in `*.applescript` sources with `osacompile -o "Connect VPN.app" "Connect VPN.applescript"`; edit the `.applescript`, recompile, and commit both. Each app must sit next to `macguardswitch-vpn.sh` (it resolves the wrapper via `container of (path to me)`).
 
 ## Components and contracts
 
@@ -43,5 +43,5 @@ These were deliberate decisions, several non-obvious. Don't "simplify" them away
 ## Conventions
 
 - Bash with `set -euo pipefail`; prefer set-e-safe idioms (`if cmd; then ...` over `cmd && ...` where a failure shouldn't abort).
-- `macguardswitch.sh` stays a single self-contained script depending only on macOS built-ins (`pfctl`, `ifconfig`, `dig`/`dscacheutil`, `scutil`, `awk`) plus `wg` (read-only, for the split-horizon-proof endpoint). The `macguard-vpn.sh` wrapper additionally needs `wg-quick`; keep that dependency in the wrapper layer, not the kill-switch.
-- Syntax-check every script after editing: `for f in macguardswitch.sh macguard-vpn.sh *.command; do bash -n "$f"; done`.
+- `macguardswitch.sh` stays a single self-contained script depending only on macOS built-ins (`pfctl`, `ifconfig`, `dig`/`dscacheutil`, `scutil`, `awk`) plus `wg` (read-only, for the split-horizon-proof endpoint). The `macguardswitch-vpn.sh` wrapper additionally needs `wg-quick`; keep that dependency in the wrapper layer, not the kill-switch.
+- Syntax-check every script after editing: `for f in macguardswitch.sh macguardswitch-vpn.sh *.command; do bash -n "$f"; done`.

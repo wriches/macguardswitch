@@ -1,15 +1,15 @@
 -- macguard VPN — Connect
 --
--- Thin GUI launcher for macguard-vpn.sh. All real logic lives in the shell
+-- Thin GUI launcher for macguardswitch-vpn.sh. All real logic lives in the shell
 -- scripts; this just runs them behind the native macOS admin prompt and shows
 -- the result, so no Terminal window appears.
 --
--- The compiled "Connect VPN.app" must sit in the SAME folder as macguard-vpn.sh.
+-- The compiled "Connect VPN.app" must sit in the SAME folder as macguardswitch-vpn.sh.
 -- Rebuild after editing:
 --   osacompile -o "Connect VPN.app" "Connect VPN.applescript"
 
 on run
-	set wrapper to quoted form of ((POSIX path of (container of (path to me))) & "macguard-vpn.sh")
+	set wrapper to quoted form of ((POSIX path of (container of (path to me))) & "macguardswitch-vpn.sh")
 
 	-- Capture the launching user's id WITHOUT elevation. `do shell script … with
 	-- administrator privileges` runs as root and sets no SUDO_UID, so we pass the

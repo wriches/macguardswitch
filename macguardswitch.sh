@@ -18,7 +18,7 @@
 #
 # ---- Fill these in from your WireGuard config ([Interface] + [Peer]) ----
 # Each may be overridden by an MGS_* environment variable, which is how the
-# macguard-vpn.sh wrapper injects values parsed straight from your .conf. Edit
+# macguardswitch-vpn.sh wrapper injects values parsed straight from your .conf. Edit
 # the defaults here only if you run macguardswitch.sh on its own.
 SERVER="${MGS_SERVER:-vpn.example.com}"        # Peer "Endpoint" host. An IP is best; a
                            #   hostname is re-resolved while the tunnel is DOWN (DNS is

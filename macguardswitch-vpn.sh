@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# macguard-vpn — one-command WireGuard + kill-switch, for non-technical users.
+# macguardswitch-vpn — one-command WireGuard + kill-switch, for non-technical users.
 #
 # Pairs with macguardswitch.sh (the pf kill-switch) in the SAME folder. Reads the
 # server endpoint and tunnel IP straight from your WireGuard .conf, so there is a
@@ -13,9 +13,9 @@
 #   disconnect  Bring the tunnel down and disarm the kill-switch.
 #   status      Show whether the VPN is connected.
 #
-# You normally don't run this directly — double-click "Connect VPN.command" /
-# "Disconnect VPN.command" in this folder; they call it for you (and prompt for
-# your password via sudo).
+# You normally don't run this directly — double-click "Connect VPN.app" /
+# "Disconnect VPN.app" (or the ".command" fallbacks) in this folder; they call
+# it for you and handle the password prompt.
 
 set -euo pipefail
 
@@ -27,9 +27,9 @@ KS="$SCRIPT_DIR/macguardswitch.sh"
 # sits next to this script.
 WG_CONF=""
 
-PIDFILE="/var/run/macguard-vpn.pid"           # the supervisor
-ARM_PIDFILE="/var/run/macguard-vpn-arm.pid"   # the kill-switch watcher it owns
-LOG="/var/log/macguard-vpn.log"
+PIDFILE="/var/run/macguardswitch-vpn.pid"           # the supervisor
+ARM_PIDFILE="/var/run/macguardswitch-vpn-arm.pid"   # the kill-switch watcher it owns
+LOG="/var/log/macguardswitch-vpn.log"
 
 CONF_PATH=""        # set by the supervisor; read by teardown()
 
