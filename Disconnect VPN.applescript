@@ -2,8 +2,8 @@
 --
 -- Thin GUI launcher for macguardswitch-vpn.sh (see "Connect VPN.applescript").
 -- The compiled "Disconnect VPN.app" must sit in the SAME folder as macguardswitch-vpn.sh.
--- Rebuild after editing:
---   osacompile -o "Disconnect VPN.app" "Disconnect VPN.applescript"
+-- Rebuild after editing (compiles + applies the custom icon):
+--   tools/build-apps.sh
 
 on run
 	-- Folder containing this .app (see "Connect VPN.applescript" for why dirname).

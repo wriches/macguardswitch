@@ -55,8 +55,8 @@ Session lifecycle, handled for you:
 > Cloning the repo with `git` avoids quarantine entirely.
 
 The apps are thin GUI shims over `macguardswitch-vpn.sh`; their AppleScript source
-(`*.applescript`) is in the repo. To rebuild after editing:
-`osacompile -o "Connect VPN.app" "Connect VPN.applescript"`.
+(`*.applescript`) and custom icons are in the repo. To rebuild after editing,
+run `tools/build-apps.sh` (compiles the source and applies the icons).
 
 ## Setup (advanced — running the kill-switch by hand)
 

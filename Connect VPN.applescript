@@ -5,8 +5,8 @@
 -- the result, so no Terminal window appears.
 --
 -- The compiled "Connect VPN.app" must sit in the SAME folder as macguardswitch-vpn.sh.
--- Rebuild after editing:
---   osacompile -o "Connect VPN.app" "Connect VPN.applescript"
+-- Rebuild after editing (compiles + applies the custom icon):
+--   tools/build-apps.sh
 
 on run
 	-- Folder containing this .app (dirname of the bundle path; avoids Finder's
