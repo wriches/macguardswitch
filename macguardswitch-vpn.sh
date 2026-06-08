@@ -84,7 +84,7 @@ parse_conf() {
 # Re-run ourselves under sudo so the user only gets one password prompt.
 need_root() {
   if [ "$(id -u)" -ne 0 ]; then
-    exec sudo -p "Password to manage the VPN: " "$SELF" "$@"
+    exec sudo -p "Password to manage the VPN: " bash "$SELF" "$@"
   fi
 }
 
@@ -144,7 +144,12 @@ cmd_connect() {
 
   echo "Connecting to $MGS_SERVER (this can take a few seconds)…"
   log "Connect requested for uid ${uid:-?} using $conf"
-  nohup bash "$SELF" __supervise "$uid" "$conf" >>"$LOG" 2>&1 </dev/null &
+  # Detach the supervisor WITHOUT nohup: under `do shell script … with admin
+  # privileges` there's no controlling tty, and nohup aborts ("can't detach from
+  # console: Inappropriate ioctl for device"). The supervisor ignores SIGHUP
+  # itself (trap '' HUP), which is all nohup gave us; redirected I/O + disown +
+  # reparenting to launchd complete the detachment.
+  bash "$SELF" __supervise "$uid" "$conf" >>"$LOG" 2>&1 </dev/null &
   disown 2>/dev/null || true
 
   local i ok=""
@@ -158,7 +163,12 @@ cmd_connect() {
     echo "✅ Connected and protected by the kill-switch."
     echo "   You can close this window. Use “Disconnect VPN” when you're done."
   elif ! supervisor_alive; then
-    echo "❌ Couldn't connect. See $LOG for details."
+    # To stderr so `do shell script` surfaces it in the .app's error dialog.
+    {
+      echo "❌ Couldn't connect. Recent log:"
+      tail -n 8 "$LOG" 2>/dev/null | sed 's/^/    /' || true
+      echo "   (full log: $LOG)"
+    } >&2
     exit 1
   else
     echo "⚠️  Connecting is taking longer than expected — check $LOG."
@@ -205,7 +215,8 @@ cmd_supervise() {
   CONF_PATH="$2"
   wuser="$(id -un "$uid" 2>/dev/null || true)"
   echo $$ > "$PIDFILE"
-  trap teardown TERM INT
+  trap '' HUP               # survive the launching terminal/app going away (replaces nohup)
+  trap teardown TERM INT    # disconnect / shutdown → clean teardown
   log "Supervisor pid $$ up. Watching user: ${wuser:-<none>}. Conf: $CONF_PATH"
 
   parse_conf "$CONF_PATH"          # exports MGS_* so the kill-switch matches the conf
