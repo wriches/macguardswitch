@@ -109,7 +109,12 @@ user_logged_in() {
 }
 
 supervisor_alive() {
-  [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE" 2>/dev/null)" 2>/dev/null
+  [ -f "$PIDFILE" ] || return 1
+  local pid; pid="$(cat "$PIDFILE" 2>/dev/null)"
+  { [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; } || return 1
+  # Guard against a reused PID behind a stale pidfile: confirm it's really OUR
+  # supervisor, not just any live process that inherited that number.
+  ps -p "$pid" -o command= 2>/dev/null | grep -q 'macguardswitch-vpn.sh __supervise'
 }
 
 # Bring the tunnel down and disarm. Runs on disconnect (SIGTERM), logout, or
@@ -260,6 +265,14 @@ cmd_supervise() {
   log "Supervising. Persists across fast user switching; exits on logout/shutdown."
 
   while true; do
+    # Self-heal: if our arm watcher is gone (killed/crashed, or someone disarmed
+    # out-of-band), the protection is no longer ours to vouch for — tear down and
+    # exit instead of lingering as a zombie that makes `connect` say "already
+    # connected" while pf is off and the tunnel is down.
+    if [ -f "$ARM_PIDFILE" ] && ! kill -0 "$(cat "$ARM_PIDFILE" 2>/dev/null)" 2>/dev/null; then
+      log "arm watcher gone — tearing down."
+      teardown
+    fi
     if [ -n "$uid" ] && ! user_logged_in "$wuser"; then
       log "User ${wuser:-$uid} logged out."
       teardown
