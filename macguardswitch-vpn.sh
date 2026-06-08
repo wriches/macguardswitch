@@ -117,6 +117,25 @@ supervisor_alive() {
   ps -p "$pid" -o command= 2>/dev/null | grep -q 'macguardswitch-vpn.sh __supervise'
 }
 
+# Kill EVERY running supervisor and arm watcher by command pattern — not just the
+# pidfile's PID, which desyncs (gets removed while the process lives) and has
+# repeatedly left orphans re-installing rules after disconnect. TERM, then KILL
+# any survivor. Excludes our own PID; the patterns don't match `… disconnect`.
+kill_macguard_procs() {
+  local sig="$1" pat p
+  for pat in 'macguardswitch-vpn.sh __supervise' 'macguardswitch.sh arm'; do
+    for p in $(pgrep -f "$pat" 2>/dev/null); do
+      [ "$p" = "$$" ] && continue
+      kill "$sig" "$p" 2>/dev/null || true
+    done
+  done
+}
+
+# Are any supervisor/arm processes still running?
+macguard_procs_running() {
+  pgrep -f 'macguardswitch-vpn.sh __supervise|macguardswitch.sh arm' >/dev/null 2>&1
+}
+
 # Bring the tunnel down and disarm. Runs on disconnect (SIGTERM), logout, or
 # shutdown. Order: stop the watcher first so it can't re-arm between down and
 # disarm; stay locked down (fail-closed) until disarm restores normal pf.
@@ -199,32 +218,32 @@ cmd_disconnect() {
     tip="$(parse_conf "$conf" >/dev/null 2>&1 && printf '%s' "$MGS_TUNNEL_IP")" || true
   fi
 
-  if supervisor_alive; then
-    local pid; pid="$(cat "$PIDFILE")"
-    echo "Disconnecting…"
-    kill -TERM "$pid" 2>/dev/null || true
-    local i
-    for i in $(seq 1 30); do
-      kill -0 "$pid" 2>/dev/null || break
-      sleep 0.5
-    done
-  else
-    echo "No supervisor running — cleaning up anyway…"
-  fi
+  echo "Disconnecting…"
+  # Kill the supervisor AND its arm watcher BY COMMAND PATTERN, not by pidfile —
+  # the pidfile desyncs (gets removed while the process lives) and kept leaving
+  # orphans that re-installed rules after disconnect. TERM first (lets the
+  # supervisor run its own teardown), wait, then KILL any survivor.
+  kill_macguard_procs -TERM
+  local i
+  for i in $(seq 1 20); do macguard_procs_running || break; sleep 0.5; done
+  kill_macguard_procs -KILL
 
-  # Don't trust the supervisor's best-effort teardown: redo the bring-down and
-  # disarm here so disconnect is self-sufficient, then VERIFY before reporting.
-  # (The old code printed success purely because the process exited, so a failed
-  # 'wg-quick down' — e.g. the bash-3 mismatch — left the VPN up but looked OK.)
+  # Self-sufficient cleanup — never assume the supervisor's teardown completed.
   if [ -n "$conf" ]; then wg-quick down "$conf" >>"$LOG" 2>&1 || true; fi
   bash "$KS" disarm >>"$LOG" 2>&1 || true
   rm -f "$PIDFILE" "$ARM_PIDFILE"
 
-  if [ -n "$tip" ] && tunnel_up "$tip"; then
-    # To stderr so the .app's error dialog shows it (do shell script surfaces stderr).
+  # Verify: tunnel really down AND nothing left to re-arm. To stderr so the .app
+  # dialog surfaces failures.
+  local still_up="" still_proc=""
+  if [ -n "$tip" ] && tunnel_up "$tip"; then still_up=1; fi
+  if macguard_procs_running; then still_proc=1; fi
+  if [ -n "$still_up" ] || [ -n "$still_proc" ]; then
     {
-      echo "❌ Disconnect FAILED — the tunnel is still up (${tip} is on a utun)."
-      echo "   Bring it down manually:  sudo wg-quick down ${conf:-<your .conf>}"
+      echo "❌ Disconnect FAILED."
+      if [ -n "$still_up" ]; then echo "   Tunnel still up (${tip} on a utun)."; fi
+      if [ -n "$still_proc" ]; then echo "   A watcher process is still running."; fi
+      echo "   Force-clean:  sudo pkill -9 -f __supervise; sudo bash '$KS' disarm   (or reboot)"
       echo "   Recent log:"
       tail -n 15 "$LOG" 2>/dev/null | sed 's/^/    /' || true
     } >&2
