@@ -9,7 +9,10 @@
 --   osacompile -o "Connect VPN.app" "Connect VPN.applescript"
 
 on run
-	set wrapper to quoted form of ((POSIX path of (container of (path to me))) & "macguardswitch-vpn.sh")
+	-- Folder containing this .app (dirname of the bundle path; avoids Finder's
+	-- `container of`, which isn't available without an application target).
+	set appFolder to do shell script "dirname " & quoted form of (POSIX path of (path to me))
+	set wrapper to quoted form of (appFolder & "/macguardswitch-vpn.sh")
 
 	-- Capture the launching user's id WITHOUT elevation. `do shell script … with
 	-- administrator privileges` runs as root and sets no SUDO_UID, so we pass the
