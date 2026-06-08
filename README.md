@@ -17,7 +17,41 @@ If the tunnel drops, traffic stops instead of leaking onto your normal connectio
 - An existing WireGuard tunnel (WireGuard.app or `wireguard-tools`)
 - `sudo` / admin rights
 
-## Setup
+## Easy mode — double-click to connect (recommended)
+
+For a non-technical user, you don't touch the Terminal at all. The wrapper
+`macguard-vpn.sh` reads the endpoint and tunnel IP **straight from your `.conf`**
+(so there's nothing to configure twice), brings up WireGuard, arms the kill-switch,
+and supervises the session.
+
+**Setup (once):** put your WireGuard `.conf` in this folder, next to the scripts.
+That's it — no editing required. (If you keep more than one `.conf` here, set
+`WG_CONF` at the top of `macguard-vpn.sh` to pick one. `wireguard-tools` must be
+installed — `brew install wireguard-tools`.)
+
+**To connect:** double-click **`Connect VPN.command`**, enter your Mac password
+when asked, wait for `✅ Connected and protected`, and close the window. The VPN
+and kill-switch keep running in the background — you don't need to leave anything
+open.
+
+**To disconnect:** double-click **`Disconnect VPN.command`**.
+
+Session lifecycle, handled for you:
+
+- **Fast user switching** (switch to another account without logging out) — the
+  VPN and kill-switch **keep running**.
+- **Log out** — the tunnel is brought down and the firewall restored **cleanly**.
+- **Reboot / shutdown** — torn down cleanly; after restart the machine is back to
+  normal (run Connect again).
+
+> If you got these files by download (email, web), macOS may quarantine them.
+> The first time, right-click `Connect VPN.command` → **Open** to approve it;
+> after that, double-click works normally.
+
+## Setup (advanced — running the kill-switch by hand)
+
+You can also run the kill-switch directly without the wrapper. Edit the three
+variables at the top of `macguardswitch.sh` to match your WireGuard config:
 
 Edit the three variables at the top of `macguardswitch.sh` to match your WireGuard config:
 

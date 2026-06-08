@@ -17,12 +17,15 @@
 #   status  Show pf status and whether the tunnel is up.
 #
 # ---- Fill these in from your WireGuard config ([Interface] + [Peer]) ----
-SERVER="vpn.example.com"   # Peer "Endpoint" host. An IP is best; a hostname is
-                           #   re-resolved while the tunnel is DOWN (DNS is allowed
-                           #   out to the system resolvers then), so a dynamic-DNS
+# Each may be overridden by an MGS_* environment variable, which is how the
+# macguard-vpn.sh wrapper injects values parsed straight from your .conf. Edit
+# the defaults here only if you run macguardswitch.sh on its own.
+SERVER="${MGS_SERVER:-vpn.example.com}"        # Peer "Endpoint" host. An IP is best; a
+                           #   hostname is re-resolved while the tunnel is DOWN (DNS is
+                           #   allowed out to the system resolvers then), so a dynamic-DNS
                            #   endpoint is tracked without a re-arm. IPv4 only.
-SERVER_PORT="51820"        # Peer "Endpoint" port
-TUNNEL_IP="10.7.0.2"       # your [Interface] "Address", WITHOUT the /NN suffix
+SERVER_PORT="${MGS_SERVER_PORT:-51820}"        # Peer "Endpoint" port
+TUNNEL_IP="${MGS_TUNNEL_IP:-10.7.0.2}"         # [Interface] "Address", WITHOUT the /NN suffix
 # -------------------------------------------------------------------------
 
 set -euo pipefail

@@ -6,6 +6,13 @@ Guidance for Claude Code working in this repo.
 
 `macguardswitch.sh` is a single-file, fail-closed WireGuard kill-switch for macOS implemented with `pf`/`pfctl`. Three subcommands: `arm`, `disarm`, `status`.
 
+`macguard-vpn.sh` is a higher-level wrapper for non-technical users (`connect`/`disconnect`/`status`), plus `Connect VPN.command` / `Disconnect VPN.command` double-click launchers that call it. It parses the WireGuard `.conf` for the endpoint and tunnel address, injects them into the kill-switch via `MGS_*` env vars (see below), self-elevates with `sudo`, and runs a detached root **supervisor** that brings up the tunnel + kill-switch and tears them down on logout/shutdown. Keep the kill-switch itself policy-free — session/lifecycle logic belongs in the wrapper, not in `macguardswitch.sh`.
+
+## Components and contracts
+
+- **`MGS_*` env overrides.** `macguardswitch.sh` reads `SERVER`/`SERVER_PORT`/`TUNNEL_IP` from `MGS_SERVER`/`MGS_SERVER_PORT`/`MGS_TUNNEL_IP` when set, falling back to the in-file defaults. This is the wrapper's injection point (single source of truth = the `.conf`). Don't remove the env fallback; don't make the kill-switch parse `.conf` files itself.
+- **Supervisor lifecycle (wrapper).** `connect` launches a detached root supervisor (`nohup`, reparented to launchd) so closing the Terminal/window doesn't kill it. The supervisor owns the `arm` watcher (tracked via `ARM_PIDFILE`) and the tunnel, and polls whether the *initiating* user (`$SUDO_UID` → username) still has a GUI login session via `pgrep -u <user> -x loginwindow`. This is true during fast user switching (session stays loaded) and false on full logout — that distinction is the whole point, so don't replace it with a console-user or `who` check. On logout/SIGTERM it tears down (stop watcher → `wg-quick down` → `disarm`), staying fail-closed until `disarm`. A `disarm`-on-`EXIT` trap is still forbidden — teardown runs only on intentional signals/logout, so an abnormally-killed supervisor leaves the kill-switch up.
+
 ## Running and testing
 
 - Syntax check: `bash -n macguardswitch.sh`
@@ -33,4 +40,5 @@ These were deliberate decisions, several non-obvious. Don't "simplify" them away
 ## Conventions
 
 - Bash with `set -euo pipefail`; prefer set-e-safe idioms (`if cmd; then ...` over `cmd && ...` where a failure shouldn't abort).
-- Keep it a single self-contained script with no dependencies beyond macOS built-ins (`pfctl`, `ifconfig`, `dig`/`dscacheutil`, `awk`).
+- `macguardswitch.sh` stays a single self-contained script depending only on macOS built-ins (`pfctl`, `ifconfig`, `dig`/`dscacheutil`, `scutil`, `awk`) plus `wg` (read-only, for the split-horizon-proof endpoint). The `macguard-vpn.sh` wrapper additionally needs `wg-quick`; keep that dependency in the wrapper layer, not the kill-switch.
+- Syntax-check every script after editing: `for f in macguardswitch.sh macguard-vpn.sh *.command; do bash -n "$f"; done`.
