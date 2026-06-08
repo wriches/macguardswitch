@@ -4,13 +4,13 @@ Guidance for Claude Code working in this repo.
 
 ## What this is
 
-`wg-killswitch.sh` is a single-file, fail-closed WireGuard kill-switch for macOS implemented with `pf`/`pfctl`. Three subcommands: `arm`, `disarm`, `status`.
+`macguardswitch.sh` is a single-file, fail-closed WireGuard kill-switch for macOS implemented with `pf`/`pfctl`. Three subcommands: `arm`, `disarm`, `status`.
 
 ## Running and testing
 
-- Syntax check: `bash -n wg-killswitch.sh`
+- Syntax check: `bash -n macguardswitch.sh`
 - Must run as root (`sudo`). It edits the live `pf` firewall, so test on a machine you can recover (Screen Sharing or a second local session) — not over the SSH connection it might cut.
-- Manual verification: `sudo ./wg-killswitch.sh arm`, confirm traffic works, quit the WireGuard tunnel, confirm `curl https://example.com` hangs, then `sudo ./wg-killswitch.sh disarm`.
+- Manual verification: `sudo ./macguardswitch.sh arm`, confirm traffic works, quit the WireGuard tunnel, confirm `curl https://example.com` hangs, then `sudo ./macguardswitch.sh disarm`.
 
 ## Design invariants — do not regress these
 

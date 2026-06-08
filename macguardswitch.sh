@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# WireGuard kill-switch for macOS — fail-closed, via pf.
+# macguardswitch — a fail-closed WireGuard kill-switch for macOS, via pf.
 # Single-owner pf script: do NOT run alongside Internet Sharing or other
 # software that manages pf at runtime; use an anchor-based version for that.
 #
@@ -45,8 +45,8 @@ valid_ipv4() {
 valid_ipv4 "$TUNNEL_IP" \
   || { echo "Invalid TUNNEL_IP: $TUNNEL_IP" >&2; exit 1; }
 
-RULES="/etc/pf-wg-killswitch.conf"
-STATE="/var/run/wg-killswitch.state"   # remembers pf's pre-arm on/off state
+RULES="/etc/pf-macguardswitch.conf"
+STATE="/var/run/macguardswitch.state"   # remembers pf's pre-arm on/off state
 IPS=""                                 # endpoint IP(s); set by arm()/loop, read by load()
 RESOLVERS=""                           # system DNS resolvers; set while tunnel down
 

@@ -19,20 +19,20 @@ If the tunnel drops, traffic stops instead of leaking onto your normal connectio
 
 ## Setup
 
-Edit the three variables at the top of `wg-killswitch.sh` to match your WireGuard config:
+Edit the three variables at the top of `macguardswitch.sh` to match your WireGuard config:
 
 | Variable | From your config | Notes |
 | --- | --- | --- |
-| `SERVER` | Peer `Endpoint` host | An IP is best. A hostname is resolved **once, before arming** (that lookup is not protected) and the result pinned; a later DNS change needs a re-arm. |
+| `SERVER` | Peer `Endpoint` host | An IP works. A hostname is also fine — while the tunnel is down, DNS is allowed out to your system resolvers so the endpoint is re-resolved automatically, so a dynamic-DNS endpoint is tracked without a re-arm. |
 | `SERVER_PORT` | Peer `Endpoint` port | |
 | `TUNNEL_IP` | `[Interface]` `Address` | Without the `/NN` suffix. |
 
 ## Usage
 
 ```sh
-sudo ./wg-killswitch.sh arm      # block everything outside the tunnel, then watch
-sudo ./wg-killswitch.sh disarm   # restore the default pf config
-sudo ./wg-killswitch.sh status   # show pf + tunnel state
+sudo ./macguardswitch.sh arm      # block everything outside the tunnel, then watch
+sudo ./macguardswitch.sh disarm   # restore the default pf config
+sudo ./macguardswitch.sh status   # show pf + tunnel state
 ```
 
 `arm` runs in the foreground and re-detects the tunnel interface if it changes. **Ctrl-C leaves the kill-switch active** (by design) — use `disarm` to lift it.
