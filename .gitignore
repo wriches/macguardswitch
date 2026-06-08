@@ -1,1 +1,4 @@
 .DS_Store
+# WireGuard configs hold a private key — never commit them. Drop yours next to
+# the scripts (the wrapper auto-discovers the lone *.conf) and it stays ignored.
+*.conf
