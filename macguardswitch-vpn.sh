@@ -239,6 +239,16 @@ cmd_status() {
   else
     echo "VPN: not connected."
   fi
+  # Feed the kill-switch the REAL tunnel IP from the .conf; without it,
+  # macguardswitch.sh falls back to its placeholder default and always reports
+  # the tunnel "down". (Subshell + '|| true' because parse_conf exits on a bad
+  # conf and must not abort status.)
+  local conf tip=""
+  conf="$(find_conf 2>/dev/null || true)"
+  if [ -n "$conf" ]; then
+    tip="$(parse_conf "$conf" >/dev/null 2>&1 && printf '%s' "$MGS_TUNNEL_IP")" || true
+  fi
+  if [ -n "$tip" ]; then export MGS_TUNNEL_IP="$tip"; fi
   bash "$KS" status 2>/dev/null || true
 }
 
