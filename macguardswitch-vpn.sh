@@ -166,7 +166,7 @@ cmd_connect() {
     # To stderr so `do shell script` surfaces it in the .app's error dialog.
     {
       echo "❌ Couldn't connect. Recent log:"
-      tail -n 8 "$LOG" 2>/dev/null | sed 's/^/    /' || true
+      tail -n 25 "$LOG" 2>/dev/null | sed 's/^/    /' || true
       echo "   (full log: $LOG)"
     } >&2
     exit 1
