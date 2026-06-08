@@ -18,9 +18,9 @@
 #
 # ---- Fill these in from your WireGuard config ([Interface] + [Peer]) ----
 SERVER="vpn.example.com"   # Peer "Endpoint" host. An IP is best; a hostname is
-                           #   resolved ONCE, BEFORE the kill-switch arms (so that
-                           #   one lookup is NOT protected), and the result pinned
-                           #   — a later DNS change needs a re-arm. IPv4 only.
+                           #   re-resolved while the tunnel is DOWN (DNS is allowed
+                           #   out to the system resolvers then), so a dynamic-DNS
+                           #   endpoint is tracked without a re-arm. IPv4 only.
 SERVER_PORT="51820"        # Peer "Endpoint" port
 TUNNEL_IP="10.7.0.2"       # your [Interface] "Address", WITHOUT the /NN suffix
 # -------------------------------------------------------------------------
@@ -47,7 +47,8 @@ valid_ipv4 "$TUNNEL_IP" \
 
 RULES="/etc/pf-wg-killswitch.conf"
 STATE="/var/run/wg-killswitch.state"   # remembers pf's pre-arm on/off state
-IPS=""                                 # set by arm(), read by load()
+IPS=""                                 # endpoint IP(s); set by arm()/loop, read by load()
+RESOLVERS=""                           # system DNS resolvers; set while tunnel down
 
 # --- helpers --------------------------------------------------------------
 
@@ -78,6 +79,18 @@ server_ips() {
   fi
 }
 
+# Echo the system's currently-configured IPv4 DNS resolvers, de-duplicated.
+# Scopes the tunnel-down DNS allow (see load()): we permit egress to *these*
+# resolvers, never to an arbitrary nameserver. Re-read each loop so roaming to a
+# network with different resolvers keeps name resolution working.
+dns_resolvers() {
+  scutil --dns 2>/dev/null \
+    | awk '/nameserver\[[0-9]+\]/{print $3}' \
+    | while IFS= read -r ip; do
+        if valid_ipv4 "$ip"; then printf '%s\n' "$ip"; fi
+      done | sort -u || true
+}
+
 # Build, VALIDATE, then atomically load the ruleset ("" dev = tunnel down).
 load() {
   local dev="$1" ip
@@ -92,7 +105,18 @@ load() {
     # tethering, and Thunderbolt bridges. Broad enough that any process can send
     # UDP 68->67 off-tunnel; accepted as a roaming trade-off.
     echo "pass out quick proto udp from any port 68 to any port 67"
-    [ -n "$dev" ] && echo "pass out quick on ${dev} all"
+    if [ -n "$dev" ]; then
+      echo "pass out quick on ${dev} all"
+    else
+      # Tunnel DOWN only: let WireGuard (and our own re-resolve) look up a
+      # dynamic endpoint hostname. Scoped to the system's configured resolvers
+      # — pf can't match on the queried domain, so resolver-IP scoping is the
+      # tightest possible. Dropped the instant the tunnel is up, where DNS rides
+      # the tunnel via the rule above; $RESOLVERS is refreshed each loop.
+      for ip in $RESOLVERS; do
+        echo "pass out quick proto { udp tcp } to ${ip} port 53"
+      done
+    fi
   } > "$RULES"
   pfctl -nf "$RULES"        # dry-run: bail before applying if syntax is bad
   pfctl -f  "$RULES"
@@ -112,25 +136,35 @@ arm() {
   fi
 
   pfctl -E 2>/dev/null || true
+  RESOLVERS="$(dns_resolvers)"   # for the tunnel-down DNS allow (see load())
   load "$(vpn_if)"      # default-deny is in effect from here
   pfctl -F states       # drop pre-armed flows so they can't bypass via state
-  echo "Armed. Allowed out: tunnel + ${SERVER}:${SERVER_PORT} (${IPS//$'\n'/, }) + DHCP."
+  echo "Armed. Allowed out: tunnel + ${SERVER}:${SERVER_PORT} (${IPS//$'\n'/, }) + DHCP + DNS-to-resolvers while reconnecting."
   echo "Ctrl-C leaves the kill-switch ON. Run '$0 disarm' to lift it."
 
-  local cur="__init__" dev
+  local sig="__init__" newsig dev ips
   while true; do
     dev="$(vpn_if)"
-    if [ "$dev" != "$cur" ]; then
+    if [ -z "$dev" ]; then
+      # Tunnel down: re-resolve the (possibly dynamic) endpoint and refresh the
+      # resolver list, so a DDNS IP change and roaming are both tracked. Keep
+      # the last good IPS if a lookup transiently fails — never strand the
+      # endpoint rule on an empty result.
+      ips="$(server_ips)"; [ -n "$ips" ] && IPS="$ips"
+      RESOLVERS="$(dns_resolvers)"
+    fi
+    newsig="${dev}|${IPS}|${RESOLVERS}"
+    if [ "$newsig" != "$sig" ]; then
       # No state flush here on purpose: the ruleset is already default-deny, so
-      # a utun change can't have created off-tunnel leak states. Flushing would
-      # only disrupt in-tunnel traffic on every reconnect for no safety gain.
+      # a utun/endpoint-IP change can't have created off-tunnel leak states.
+      # Flushing would only disrupt in-tunnel traffic for no safety gain.
       load "$dev"
       if [ -n "$dev" ]; then
         echo "Tunnel up on ${dev} — traffic allowed through it."
       else
-        echo "Tunnel down — only reconnect + DHCP allowed."
+        echo "Tunnel down — only reconnect + DNS + DHCP allowed."
       fi
-      cur="$dev"
+      sig="$newsig"
     fi
     sleep 2
   done
