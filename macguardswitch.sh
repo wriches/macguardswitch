@@ -29,6 +29,10 @@ TUNNEL_IP="${MGS_TUNNEL_IP:-10.7.0.2}"         # [Interface] "Address", WITHOUT 
 # -------------------------------------------------------------------------
 
 set -euo pipefail
+# sudo/launchd give a minimal PATH without Homebrew/MacPorts, so `wg` (used for the
+# split-horizon-proof endpoint) may be missing. Append the usual spots — append,
+# not prepend, so system binaries keep priority over any Homebrew versions.
+export PATH="$PATH:/opt/homebrew/bin:/usr/local/bin:/opt/local/bin"
 [ "$(id -u)" -eq 0 ] || { echo "Run me with sudo." >&2; exit 1; }
 umask 077                  # files we drop in /etc and /var/run stay 600
 

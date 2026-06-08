@@ -19,6 +19,11 @@
 
 set -euo pipefail
 
+# `do shell script … with administrator privileges` and launchd hand us a minimal
+# PATH that omits Homebrew/MacPorts, so wg-quick/wg aren't found even when they're
+# installed. Append the usual locations (append, not prepend, so system tools win).
+export PATH="$PATH:/opt/homebrew/bin:/usr/local/bin:/opt/local/bin"
+
 SELF="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
 SCRIPT_DIR="$(dirname "$SELF")"
 KS="$SCRIPT_DIR/macguardswitch.sh"
