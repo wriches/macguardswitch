@@ -35,7 +35,24 @@ sudo ./macguardswitch.sh disarm   # restore the default pf config
 sudo ./macguardswitch.sh status   # show pf + tunnel state
 ```
 
-`arm` runs in the foreground and re-detects the tunnel interface if it changes. **Ctrl-C leaves the kill-switch active** (by design) — use `disarm` to lift it.
+`arm` runs in the **foreground as a watcher**: after installing the rules it keeps running to detect the tunnel's `utun` interface (whose number is dynamic) and open it the moment WireGuard connects. **Leave it running** — bring WireGuard up in a *second* terminal:
+
+```sh
+# terminal 1
+sudo ./macguardswitch.sh arm
+# terminal 2
+sudo wg-quick up ./your.conf      # watch terminal 1 flip to "Tunnel up on utunN"
+```
+
+Or background the watcher instead of using a second terminal:
+
+```sh
+sudo nohup ./macguardswitch.sh arm >/tmp/macguardswitch.log 2>&1 &
+```
+
+**Ctrl-C stops the watcher but leaves the kill-switch rules in place** (fail-closed by design). The machine stays locked down until you run `disarm`; the only thing you lose by stopping the watcher is automatic tunnel detection — so don't Ctrl-C before the tunnel is up.
+
+You can arm before or after connecting; **before is recommended** (no leak window). The endpoint is pinned from your local DNS while the tunnel is down and from WireGuard's actual endpoint (`wg show`) while it's up, so [split-horizon DNS](https://en.wikipedia.org/wiki/Split-horizon_DNS) can't poison it either way.
 
 ## Verify it works
 

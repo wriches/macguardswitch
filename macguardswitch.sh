@@ -79,6 +79,30 @@ server_ips() {
   fi
 }
 
+# Echo the peer endpoint IP(s) WireGuard is ACTUALLY using on $dev (empty if
+# none / no wg / no handshake). This is authoritative and immune to split-horizon
+# DNS, which hands back the server's *internal* address once the tunnel — and the
+# VPN's own resolver — are up. IPv4 only; IPv6/(none) endpoints are filtered out.
+wg_endpoint_ips() {
+  local dev="$1"
+  [ -n "$dev" ] || return 0
+  command -v wg >/dev/null 2>&1 || return 0
+  wg show "$dev" endpoints 2>/dev/null \
+    | awk '{print $NF}' | sed -E 's/:[0-9]+$//' \
+    | while IFS= read -r ip; do
+        if valid_ipv4 "$ip"; then printf '%s\n' "$ip"; fi
+      done | sort -u || true
+}
+
+# The endpoint IP(s) to pin for the off-tunnel transport rule. When a tunnel is
+# up, trust WireGuard (split-horizon-proof) and NEVER fall back to DNS — a lookup
+# then could return the internal address. When down, resolve SERVER via local DNS
+# (which gives the public answer). Order matters; see CLAUDE.md.
+endpoint_ips() {
+  local dev="$1"
+  if [ -n "$dev" ]; then wg_endpoint_ips "$dev"; else server_ips; fi
+}
+
 # Echo the system's currently-configured IPv4 DNS resolvers, de-duplicated.
 # Scopes the tunnel-down DNS allow (see load()): we permit egress to *these*
 # resolvers, never to an arbitrary nameserver. Re-read each loop so roaming to a
@@ -125,7 +149,16 @@ load() {
 # --- subcommands ----------------------------------------------------------
 
 arm() {
-  IPS="$(server_ips)"
+  local dev0; dev0="$(vpn_if)"
+  IPS="$(endpoint_ips "$dev0")"
+  if [ -z "$IPS" ] && [ -n "$dev0" ]; then
+    # Tunnel up but its endpoint is unreadable (no 'wg' in PATH, or no handshake
+    # yet). Resolving now risks pinning a split-horizon/internal address, so
+    # refuse rather than lock down to the wrong endpoint.
+    echo "Tunnel is up but its endpoint is unreadable via 'wg show'." >&2
+    echo "Install wireguard-tools, or disarm and arm while the tunnel is DOWN." >&2
+    exit 1
+  fi
   [ -n "$IPS" ] || { echo "Could not resolve ${SERVER}. Fix DNS or use an IP." >&2; exit 1; }
 
   # Remember whether pf was already enabled, so disarm can restore it.
@@ -137,22 +170,25 @@ arm() {
 
   pfctl -E 2>/dev/null || true
   RESOLVERS="$(dns_resolvers)"   # for the tunnel-down DNS allow (see load())
-  load "$(vpn_if)"      # default-deny is in effect from here
+  load "$dev0"          # default-deny is in effect from here
   pfctl -F states       # drop pre-armed flows so they can't bypass via state
   echo "Armed. Allowed out: tunnel + ${SERVER}:${SERVER_PORT} (${IPS//$'\n'/, }) + DHCP + DNS-to-resolvers while reconnecting."
-  echo "Ctrl-C leaves the kill-switch ON. Run '$0 disarm' to lift it."
+  echo "Leave this running: it watches for the tunnel and opens it the moment WireGuard connects."
+  echo "Bring WireGuard up in ANOTHER terminal (or background this with '&')."
+  echo "Ctrl-C stops the watcher but LEAVES the kill-switch rules ON — run '$0 disarm' to lift them."
 
   local sig="__init__" newsig dev ips
   while true; do
     dev="$(vpn_if)"
-    if [ -z "$dev" ]; then
-      # Tunnel down: re-resolve the (possibly dynamic) endpoint and refresh the
-      # resolver list, so a DDNS IP change and roaming are both tracked. Keep
-      # the last good IPS if a lookup transiently fails — never strand the
-      # endpoint rule on an empty result.
-      ips="$(server_ips)"; [ -n "$ips" ] && IPS="$ips"
-      RESOLVERS="$(dns_resolvers)"
-    fi
+    # Keep the pinned endpoint correct: read it from WireGuard while up (split-
+    # horizon-proof), re-resolve SERVER via DNS while down (so a DDNS change is
+    # tracked). Keep the last good IPS if a lookup/query transiently returns
+    # nothing — never strand the endpoint rule on an empty result.
+    ips="$(endpoint_ips "$dev")"
+    if [ -n "$ips" ]; then IPS="$ips"; fi
+    # Refresh the resolver list only while down (that's the only time the DNS
+    # allow is emitted), so roaming to a new network keeps name resolution working.
+    if [ -z "$dev" ]; then RESOLVERS="$(dns_resolvers)"; fi
     newsig="${dev}|${IPS}|${RESOLVERS}"
     if [ "$newsig" != "$sig" ]; then
       # No state flush here on purpose: the ruleset is already default-deny, so
