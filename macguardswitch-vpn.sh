@@ -112,7 +112,7 @@ teardown() {
   log "Teardown: stopping watcher, tunnel, and kill-switch."
   if [ -f "$ARM_PIDFILE" ]; then kill "$(cat "$ARM_PIDFILE" 2>/dev/null)" 2>/dev/null || true; fi
   if [ -n "$CONF_PATH" ]; then wg-quick down "$CONF_PATH" >>"$LOG" 2>&1 || true; fi
-  "$KS" disarm >>"$LOG" 2>&1 || true
+  bash "$KS" disarm >>"$LOG" 2>&1 || true
   rm -f "$PIDFILE" "$ARM_PIDFILE"
   log "Teardown complete."
   exit 0
@@ -121,7 +121,7 @@ teardown() {
 # --- subcommands -----------------------------------------------------------
 
 cmd_connect() {
-  [ -x "$KS" ] || { echo "Can't find macguardswitch.sh next to this script." >&2; exit 1; }
+  [ -f "$KS" ] || { echo "Can't find macguardswitch.sh next to this script." >&2; exit 1; }
   command -v wg-quick >/dev/null 2>&1 || { echo "wg-quick not found — install WireGuard tools (e.g. 'brew install wireguard-tools')." >&2; exit 1; }
 
   # Whose logout should tear the VPN down: an explicit uid arg wins (the .app
@@ -139,7 +139,7 @@ cmd_connect() {
 
   echo "Connecting to $MGS_SERVER (this can take a few seconds)…"
   log "Connect requested for uid ${uid:-?} using $conf"
-  nohup "$SELF" __supervise "$uid" "$conf" >>"$LOG" 2>&1 </dev/null &
+  nohup bash "$SELF" __supervise "$uid" "$conf" >>"$LOG" 2>&1 </dev/null &
   disown 2>/dev/null || true
 
   local i ok=""
@@ -173,14 +173,14 @@ cmd_disconnect() {
     done
     if kill -0 "$pid" 2>/dev/null; then
       echo "⚠️  Supervisor didn't stop cleanly; forcing firewall restore."
-      "$KS" disarm >/dev/null 2>&1 || true
+      bash "$KS" disarm >/dev/null 2>&1 || true
     fi
     echo "✅ Disconnected. Normal internet restored. You can close this window."
   else
     echo "No active VPN session. Restoring the firewall just in case…"
     local conf; conf="$(find_conf 2>/dev/null || true)"
     if [ -n "$conf" ]; then wg-quick down "$conf" >/dev/null 2>&1 || true; fi
-    "$KS" disarm >/dev/null 2>&1 || true
+    bash "$KS" disarm >/dev/null 2>&1 || true
     echo "✅ Done. You can close this window."
   fi
 }
@@ -191,7 +191,7 @@ cmd_status() {
   else
     echo "VPN: not connected."
   fi
-  "$KS" status 2>/dev/null || true
+  bash "$KS" status 2>/dev/null || true
 }
 
 # The long-running background process started by cmd_connect. Runs as root.
@@ -205,7 +205,7 @@ cmd_supervise() {
 
   parse_conf "$CONF_PATH"          # exports MGS_* so the kill-switch matches the conf
 
-  "$KS" arm >>"$LOG" 2>&1 &
+  bash "$KS" arm >>"$LOG" 2>&1 &
   echo $! > "$ARM_PIDFILE"
   sleep 2                          # let the deny ruleset install before connecting
 
