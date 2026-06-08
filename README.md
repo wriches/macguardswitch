@@ -29,12 +29,16 @@ That's it — no editing required. (If you keep more than one `.conf` here, set
 `WG_CONF` at the top of `macguard-vpn.sh` to pick one. `wireguard-tools` must be
 installed — `brew install wireguard-tools`.)
 
-**To connect:** double-click **`Connect VPN.command`**, enter your Mac password
-when asked, wait for `✅ Connected and protected`, and close the window. The VPN
-and kill-switch keep running in the background — you don't need to leave anything
-open.
+**To connect:** double-click **`Connect VPN.app`**. macOS shows its standard
+"enter your password to make changes" dialog; after a few seconds a **✅ Connected
+and protected** popup appears. No Terminal window — there's nothing to leave open
+or close. The VPN and kill-switch keep running in the background.
 
-**To disconnect:** double-click **`Disconnect VPN.command`**.
+**To disconnect:** double-click **`Disconnect VPN.app`**.
+
+> **`.command` fallback.** `Connect VPN.command` / `Disconnect VPN.command` do the
+> same thing in a Terminal window (you type your password there, and close the
+> window yourself afterwards). Use these if you prefer to see the live log.
 
 Session lifecycle, handled for you:
 
@@ -44,16 +48,20 @@ Session lifecycle, handled for you:
 - **Reboot / shutdown** — torn down cleanly; after restart the machine is back to
   normal (run Connect again).
 
-> If you got these files by download (email, web), macOS may quarantine them.
-> The first time, right-click `Connect VPN.command` → **Open** to approve it;
-> after that, double-click works normally.
+> If you got these files by download (email, web), macOS may quarantine them and
+> refuse to open them. Clear it once: in this folder run
+> `xattr -dr com.apple.quarantine .` — or right-click → **Open** the first time
+> (for `.app`s, approve via **System Settings → Privacy & Security → Open Anyway**).
+> Cloning the repo with `git` avoids quarantine entirely.
+
+The apps are thin GUI shims over `macguard-vpn.sh`; their AppleScript source
+(`*.applescript`) is in the repo. To rebuild after editing:
+`osacompile -o "Connect VPN.app" "Connect VPN.applescript"`.
 
 ## Setup (advanced — running the kill-switch by hand)
 
 You can also run the kill-switch directly without the wrapper. Edit the three
 variables at the top of `macguardswitch.sh` to match your WireGuard config:
-
-Edit the three variables at the top of `macguardswitch.sh` to match your WireGuard config:
 
 | Variable | From your config | Notes |
 | --- | --- | --- |

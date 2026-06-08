@@ -124,6 +124,11 @@ cmd_connect() {
   [ -x "$KS" ] || { echo "Can't find macguardswitch.sh next to this script." >&2; exit 1; }
   command -v wg-quick >/dev/null 2>&1 || { echo "wg-quick not found — install WireGuard tools (e.g. 'brew install wireguard-tools')." >&2; exit 1; }
 
+  # Whose logout should tear the VPN down: an explicit uid arg wins (the .app
+  # passes it, since `do shell script … with administrator privileges` sets no
+  # SUDO_UID), else fall back to sudo's caller (the .command path).
+  local uid="${1:-}"; [ -n "$uid" ] || uid="${SUDO_UID:-}"
+
   local conf; conf="$(find_conf)"
   parse_conf "$conf"
 
@@ -133,8 +138,8 @@ cmd_connect() {
   fi
 
   echo "Connecting to $MGS_SERVER (this can take a few seconds)…"
-  log "Connect requested by uid ${SUDO_UID:-?} using $conf"
-  nohup "$SELF" __supervise "${SUDO_UID:-}" "$conf" >>"$LOG" 2>&1 </dev/null &
+  log "Connect requested for uid ${uid:-?} using $conf"
+  nohup "$SELF" __supervise "$uid" "$conf" >>"$LOG" 2>&1 </dev/null &
   disown 2>/dev/null || true
 
   local i ok=""
@@ -222,7 +227,7 @@ cmd_supervise() {
 # --- dispatch --------------------------------------------------------------
 
 case "${1:-}" in
-  connect)     need_root "$@"; cmd_connect ;;
+  connect)     need_root "$@"; cmd_connect "${2:-}" ;;
   disconnect)  need_root "$@"; cmd_disconnect ;;
   status)      need_root "$@"; cmd_status ;;
   __supervise) shift; cmd_supervise "$@" ;;   # internal: already root, via cmd_connect
