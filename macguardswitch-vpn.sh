@@ -119,7 +119,13 @@ teardown() {
   trap '' TERM INT          # don't re-enter while tearing down
   log "Teardown: stopping watcher, tunnel, and kill-switch."
   if [ -f "$ARM_PIDFILE" ]; then kill "$(cat "$ARM_PIDFILE" 2>/dev/null)" 2>/dev/null || true; fi
-  if [ -n "$CONF_PATH" ]; then wg-quick down "$CONF_PATH" >>"$LOG" 2>&1 || true; fi
+  if [ -n "$CONF_PATH" ]; then
+    if wg-quick down "$CONF_PATH" >>"$LOG" 2>&1; then
+      log "wg-quick down: ok."
+    else
+      log "wg-quick down FAILED (tunnel may still be up) — see output above."
+    fi
+  fi
   bash "$KS" disarm >>"$LOG" 2>&1 || true
   rm -f "$PIDFILE" "$ARM_PIDFILE"
   log "Teardown complete."
@@ -180,6 +186,14 @@ cmd_connect() {
 }
 
 cmd_disconnect() {
+  local conf tip=""
+  conf="$(find_conf 2>/dev/null || true)"
+  # Tunnel IP for the post-teardown verification. Subshell + '|| true' because
+  # parse_conf calls exit on a bad/missing conf and we must not abort here.
+  if [ -n "$conf" ]; then
+    tip="$(parse_conf "$conf" >/dev/null 2>&1 && printf '%s' "$MGS_TUNNEL_IP")" || true
+  fi
+
   if supervisor_alive; then
     local pid; pid="$(cat "$PIDFILE")"
     echo "Disconnecting…"
@@ -189,18 +203,29 @@ cmd_disconnect() {
       kill -0 "$pid" 2>/dev/null || break
       sleep 0.5
     done
-    if kill -0 "$pid" 2>/dev/null; then
-      echo "⚠️  Supervisor didn't stop cleanly; forcing firewall restore."
-      bash "$KS" disarm >/dev/null 2>&1 || true
-    fi
-    echo "✅ Disconnected. Normal internet restored. You can close this window."
   else
-    echo "No active VPN session. Restoring the firewall just in case…"
-    local conf; conf="$(find_conf 2>/dev/null || true)"
-    if [ -n "$conf" ]; then wg-quick down "$conf" >/dev/null 2>&1 || true; fi
-    bash "$KS" disarm >/dev/null 2>&1 || true
-    echo "✅ Done. You can close this window."
+    echo "No supervisor running — cleaning up anyway…"
   fi
+
+  # Don't trust the supervisor's best-effort teardown: redo the bring-down and
+  # disarm here so disconnect is self-sufficient, then VERIFY before reporting.
+  # (The old code printed success purely because the process exited, so a failed
+  # 'wg-quick down' — e.g. the bash-3 mismatch — left the VPN up but looked OK.)
+  if [ -n "$conf" ]; then wg-quick down "$conf" >>"$LOG" 2>&1 || true; fi
+  bash "$KS" disarm >>"$LOG" 2>&1 || true
+  rm -f "$PIDFILE" "$ARM_PIDFILE"
+
+  if [ -n "$tip" ] && tunnel_up "$tip"; then
+    # To stderr so the .app's error dialog shows it (do shell script surfaces stderr).
+    {
+      echo "❌ Disconnect FAILED — the tunnel is still up (${tip} is on a utun)."
+      echo "   Bring it down manually:  sudo wg-quick down ${conf:-<your .conf>}"
+      echo "   Recent log:"
+      tail -n 15 "$LOG" 2>/dev/null | sed 's/^/    /' || true
+    } >&2
+    exit 1
+  fi
+  echo "✅ Disconnected. Normal internet restored. You can close this window."
 }
 
 cmd_status() {
